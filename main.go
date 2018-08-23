@@ -1,11 +1,12 @@
 package main
 import (
     "os"
-    "fmt"
     "time"
     "errors"
     "strings"
 
+    "github.com/rs/zerolog/log"
+    "github.com/rs/zerolog"
 	docker "github.com/fsouza/go-dockerclient"
     pushbullet "github.com/xconstruct/go-pushbullet"
 )
@@ -24,6 +25,14 @@ type DockerContainer struct {
 }
 
 func main() {
+    zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+
+    log.Debug().
+        Str("PBTOKEN", os.Getenv("DOCKERMONITOR_PBTOKEN")).
+        Str("DOCKERSOCK", os.Getenv("DOCKERMONITOR_DOCKERSOCK")).
+        Msg("Initialized")
+
     dm, err := New(os.Getenv("DOCKERMONITOR_DOCKERSOCK"), os.Getenv("DOCKERMONITOR_PBTOKEN"))
 
     if err != nil {
@@ -31,7 +40,7 @@ func main() {
     }
 
     for true {
-        fmt.Println("Heartbeat!")
+        log.Info().Msg("Heartbeat!")
         dm.Heartbeat()
         time.Sleep(600 * time.Second)
     }
@@ -94,6 +103,12 @@ func (dm *DockerMonitor) getContainers() ([]DockerContainer, error) {
             healthy = 2
         }
 
+        log.Debug().
+            Str("Id", cont.ID).
+            Str("Name", strings.Join(cont.Names[:], ",")).
+            Int("Healthy", healthy).
+            Msg("Found container")
+
 
         conts = append(conts, DockerContainer{
             Id: cont.ID,
@@ -109,8 +124,20 @@ func (dm *DockerMonitor) checkUnhealthy(conts []DockerContainer) error {
     var err error
     for _, cont := range conts {
         if cont.Healthy != 0 {
+            log.Debug().
+                Str("Id", cont.Id).
+                Str("Name", cont.Name).
+                Int("Healthy", cont.Healthy).
+                Msg("Container is healthy or unknown")
             continue
         }
+
+        log.Debug().
+            Str("Id", cont.Id).
+            Str("Name", cont.Name).
+            Int("Healthy", cont.Healthy).
+            Msg("Container is unhealthy")
+
         err = dm.sendNotification("Docker Alert!", "Container - "+cont.Name+" is unhealthy")
 
         if err != nil {
@@ -122,5 +149,6 @@ func (dm *DockerMonitor) checkUnhealthy(conts []DockerContainer) error {
 }
 
 func (dm *DockerMonitor) sendNotification(title string, msg string) error {
+    return nil
     return dm.Pb.PushNote(dm.PbDevs[0].Iden, title, msg)
 }
