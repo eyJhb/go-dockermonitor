@@ -149,6 +149,5 @@ func (dm *DockerMonitor) checkUnhealthy(conts []DockerContainer) error {
 }
 
 func (dm *DockerMonitor) sendNotification(title string, msg string) error {
-    return nil
     return dm.Pb.PushNote(dm.PbDevs[0].Iden, title, msg)
 }
